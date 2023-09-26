@@ -11,7 +11,7 @@ require("parallel")
 
 PARAM <- list()
 # reemplazar por las propias semillas
-PARAM$semillas <- c(102191, 200177, 410551, 552581, 892237)
+PARAM$semillas <- c(100019, 100043, 100049, 100057, 100069)
 
 #------------------------------------------------------------------------------
 # particionar agrega una columna llamada fold a un dataset
@@ -21,13 +21,13 @@ PARAM$semillas <- c(102191, 200177, 410551, 552581, 892237)
 
 particionar <- function(data, division, agrupa = "", campo = "fold", start = 1, seed = NA) {
   if (!is.na(seed)) set.seed(seed)
-
+  
   bloque <- unlist(mapply(function(x, y) {
     rep(y, x)
   }, division, seq(from = start, length.out = length(division))))
-
+  
   data[, (campo) := sample(rep(bloque, ceiling(.N / length(bloque))))[1:.N],
-    by = agrupa
+       by = agrupa
   ]
 }
 #------------------------------------------------------------------------------
@@ -35,38 +35,38 @@ particionar <- function(data, division, agrupa = "", campo = "fold", start = 1, 
 ArbolEstimarGanancia <- function(semilla, param_basicos) {
   # particiono estratificadamente el dataset
   particionar(dataset, division = c(7, 3), agrupa = "clase_ternaria", seed = semilla)
-
+  
   # genero el modelo
   # quiero predecir clase_ternaria a partir del resto
   modelo <- rpart("clase_ternaria ~ .",
-    data = dataset[fold == 1], # fold==1  es training,  el 70% de los datos
-    xval = 0,
-    control = param_basicos
+                  data = dataset[fold == 1], # fold==1  es training,  el 70% de los datos
+                  xval = 0,
+                  control = param_basicos
   ) # aqui van los parametros del arbol
-
+  
   # aplico el modelo a los datos de testing
   prediccion <- predict(modelo, # el modelo que genere recien
-    dataset[fold == 2], # fold==2  es testing, el 30% de los datos
-    type = "prob"
+                        dataset[fold == 2], # fold==2  es testing, el 30% de los datos
+                        type = "prob"
   ) # type= "prob"  es que devuelva la probabilidad
-
+  
   # prediccion es una matriz con TRES columnas,
   #  llamadas "BAJA+1", "BAJA+2"  y "CONTINUA"
   # cada columna es el vector de probabilidades
-
-
+  
+  
   # calculo la ganancia en testing  qu es fold==2
   ganancia_test <- dataset[
     fold == 2,
     sum(ifelse(prediccion[, "BAJA+2"] > 0.025,
-      ifelse(clase_ternaria == "BAJA+2", 117000, -3000),
-      0
+               ifelse(clase_ternaria == "BAJA+2", 117000, -3000),
+               0
     ))
   ]
-
+  
   # escalo la ganancia como si fuera todo el dataset
   ganancia_test_normalizada <- ganancia_test / 0.3
-
+  
   return(ganancia_test_normalizada)
 }
 #------------------------------------------------------------------------------
@@ -75,21 +75,21 @@ ArbolesMontecarlo <- function(semillas, param_basicos) {
   # la funcion mcmapply  llama a la funcion ArbolEstimarGanancia
   #  tantas veces como valores tenga el vector  ksemillas
   ganancias <- mcmapply(ArbolEstimarGanancia,
-    semillas, # paso el vector de semillas
-    MoreArgs = list(param_basicos), # aqui paso el segundo parametro
-    SIMPLIFY = FALSE,
-    mc.cores = 1
+                        semillas, # paso el vector de semillas
+                        MoreArgs = list(param_basicos), # aqui paso el segundo parametro
+                        SIMPLIFY = FALSE,
+                        mc.cores = 1
   ) # se puede subir a 5 si posee Linux o Mac OS
-
+  
   ganancia_promedio <- mean(unlist(ganancias))
-
+  
   return(ganancia_promedio)
 }
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
 # Aqui se debe poner la carpeta de la computadora local
-setwd("X:\\gdrive\\ITBA2023B\\") # Establezco el Working Directory
+setwd("~/buckets/b1") # Establezco el Working Directory
 # cargo los datos
 
 # cargo los datos
@@ -118,31 +118,42 @@ cat(
 )
 
 
-# itero por los loops anidados para cada hiperparametro
+# Valores de hiperparámetros a probar
 
-for (vmax_depth in c(4, 6, 8, 10, 12, 14)) {
-  for (vmin_split in c(1000, 800, 600, 400, 200, 100, 50, 20, 10)) {
-    # notar como se agrega
 
-    # vminsplit  minima cantidad de registros en un nodo para hacer el split
-    param_basicos <- list(
-      "cp" = -0.5, # complejidad minima
-      "minsplit" = vmin_split,
-      "minbucket" = 5, # minima cantidad de registros en una hoja
-      "maxdepth" = vmax_depth
-    ) # profundidad máxima del arbol
 
-    # Un solo llamado, con la semilla 17
-    ganancia_promedio <- ArbolesMontecarlo(ksemillas, param_basicos)
+max_depth_values <- c(6,7,8,10)
+min_split_values <- c(750,800,850,900,925,950,975,1000,1025,1050,1075,1100,1200,1300)
+cp_values <- c(-1,-0.75)
+min_bucket_values <- c(20,30,45,48,50,52,55,60,62)
 
-    # escribo los resultados al archivo de salida
-    cat(
-      file = archivo_salida,
-      append = TRUE,
-      sep = "",
-      vmax_depth, "\t",
-      vmin_split, "\t",
-      ganancia_promedio, "\n"
-    )
+# itero por los loops anidados para cada hiperparámetro
+for (vmax_depth in max_depth_values) {
+  for (vmin_split in min_split_values) {
+    for (vcp in cp_values) {
+      for (vmin_bucket in min_bucket_values) {
+        param_basicos <- list(
+          "cp" = vcp,
+          "minsplit" = vmin_split,
+          "minbucket" = vmin_bucket,
+          "maxdepth" = vmax_depth
+        )
+        
+        # Un solo llamado, con la semilla 17
+        ganancia_promedio <- ArbolesMontecarlo(PARAM$semillas, param_basicos)
+        
+        # escribo los resultados al archivo de salida
+        cat(
+          file = archivo_salida,
+          append = TRUE,
+          sep = "\t",
+          vmax_depth, "\t",
+          vmin_split, "\t",
+          vcp, "\t",
+          vmin_bucket, "\t",
+          ganancia_promedio, "\n"
+        )
+      }
+    }
   }
 }
