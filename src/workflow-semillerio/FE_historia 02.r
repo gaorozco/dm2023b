@@ -17,7 +17,7 @@ require("lightgbm")
 
 # Parametros del script
 PARAM <- list()
-PARAM$experimento <- "FE631012"
+PARAM$experimento <- "FE6311"
 
 PARAM$exp_input <- "DR621012"
 
@@ -666,4 +666,4 @@ GrabarOutput()
 cat(format(Sys.time(), "%Y%m%d %H%M%S"), "\n",
     file = "zRend.txt",
     append = TRUE
-) 
+)
